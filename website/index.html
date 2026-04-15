@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BlaBlaCase — Covoiturage Pas de la Case</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="logo">
+        <span class="logo-bla">Bla</span><span class="logo-bla2">Bla</span><span class="logo-case">Case</span>
+      </div>
+      <p class="tagline">Covoiturez vers Pas de la Case.<br>Calculez vos droits de douane.</p>
+      <a class="cta-btn" href="#calculator">Calculer mes droits</a>
+      <a class="store-btn" href="#" id="playstore-link" target="_blank" rel="noopener">
+        <img src="https://play.google.com/intl/en_us/badges/static/images/badges/fr_badge_web_generic.png"
+             alt="Disponible sur Google Play" height="56" />
+      </a>
+      <p class="store-soon" id="store-soon">L'application arrive bientôt sur Google Play.</p>
+    </div>
+  </header>
+
+  <!-- FEATURES -->
+  <section class="features">
+    <div class="feature-card">
+      <div class="feature-icon">🚗</div>
+      <h3>Organisez votre trajet</h3>
+      <p>Trouvez ou proposez un covoiturage aller-retour entre votre ville et Pas de la Case.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📦</div>
+      <h3>Coordonnez vos achats</h3>
+      <p>Indiquez ce que vous comptez ramener pour une meilleure gestion de l'espace dans le véhicule.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💬</div>
+      <h3>Chat de groupe éphémère</h3>
+      <p>Communiquez avec les passagers de votre voiture. Les messages disparaissent au bout de 72h.</p>
+    </div>
+  </section>
+
+  <!-- CALCULATOR -->
+  <section class="calculator-section" id="calculator">
+    <h2>Calculateur de droits de douane</h2>
+    <p class="calc-subtitle">
+      Données officielles de la douane française (DGDDI).
+      <span id="last-updated" class="last-updated"></span>
+    </p>
+
+    <div class="calc-inputs">
+      <div class="input-group">
+        <label for="adults">Adultes (18+)</label>
+        <div class="counter">
+          <button class="counter-btn" onclick="adjust('adults', -1)">−</button>
+          <span id="adults-val">1</span>
+          <button class="counter-btn" onclick="adjust('adults', 1)">+</button>
+        </div>
+      </div>
+      <div class="input-group">
+        <label for="minors">Mineurs (15–17 ans)</label>
+        <div class="counter">
+          <button class="counter-btn" onclick="adjust('minors', -1)">−</button>
+          <span id="minors-val">0</span>
+          <button class="counter-btn" onclick="adjust('minors', 1)">+</button>
+        </div>
+      </div>
+      <div class="input-group">
+        <label for="children">Enfants (-15 ans)</label>
+        <div class="counter">
+          <button class="counter-btn" onclick="adjust('children', -1)">−</button>
+          <span id="children-val">0</span>
+          <button class="counter-btn" onclick="adjust('children', 1)">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="calc-error" class="calc-error" style="display:none">
+      Impossible de charger les données. <a href="#" onclick="loadAllowances(); return false;">Réessayer</a>
+    </div>
+
+    <div id="calc-loading" class="calc-loading">Chargement des données douanières…</div>
+
+    <table id="results-table" class="results-table" style="display:none">
+      <thead>
+        <tr>
+          <th>Catégorie</th>
+          <th>Par adulte</th>
+          <th>Par mineur</th>
+          <th>Par enfant</th>
+          <th class="col-total">Total groupe</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+
+    <div class="calc-actions">
+      <button class="refresh-btn" onclick="loadAllowances()">⟳ Rafraîchir</button>
+    </div>
+
+    <p class="calc-disclaimer">
+      Ces informations sont fournies à titre indicatif. Consultez la
+      <a href="https://www.douane.gouv.fr" target="_blank" rel="noopener">douane.gouv.fr</a>
+      pour les règles officielles en vigueur. Chaque voyageur est responsable de sa propre conformité douanière.
+    </p>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <p>© 2026 BlaBlaCase &mdash; Application non affiliée à BlaBlaCar ni aux douanes françaises.</p>
+  </footer>
+
+  <script src="calculator.js"></script>
+</body>
+</html>
