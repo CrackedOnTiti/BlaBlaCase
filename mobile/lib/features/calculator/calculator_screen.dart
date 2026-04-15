@@ -24,7 +24,16 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     final allowancesAsync = ref.watch(allowancesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Calculateur douane')),
+      appBar: AppBar(
+        title: const Text('Calculateur douane'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Rafraîchir',
+            onPressed: () => ref.invalidate(allowancesProvider),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           // Counters

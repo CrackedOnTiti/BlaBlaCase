@@ -1,5 +1,4 @@
 import '../../core/theme/app_theme.dart';
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -17,92 +16,122 @@ class TripCreateScreen extends StatefulWidget {
 }
 
 class _TripCreateScreenState extends State<TripCreateScreen> {
-  final _cityController = TextEditingController();
   final _notesController = TextEditingController();
-  DateTime? _departAt;
-  DateTime? _returnAt;
-  int _seats = 3;
+
+  // City
+  String _cityName = '';
   double? _lat, _lng;
-  List<Map<String, dynamic>> _suggestions = [];
-  Timer? _debounce;
+
+  // Date & times — always the same calendar day
+  DateTime? _tripDate;
+  TimeOfDay? _departTime;
+  TimeOfDay? _returnTime;
+
+  int _seats = 3;
   bool _loading = false;
   String? _error;
 
   @override
   void dispose() {
-    _cityController.dispose();
     _notesController.dispose();
-    _debounce?.cancel();
     super.dispose();
   }
 
-  void _onCityChanged(String query) {
-    _debounce?.cancel();
-    if (query.length < 3) {
-      setState(() => _suggestions = []);
-      return;
-    }
-    _debounce = Timer(const Duration(milliseconds: 400), () async {
-      final url = Uri.parse(
-        'https://nominatim.openstreetmap.org/search'
-        '?q=${Uri.encodeComponent(query)}&countrycodes=fr&format=json&limit=5&addressdetails=1',
-      );
-      final res = await http.get(url, headers: {'Accept-Language': 'fr'});
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as List;
-        setState(() {
-          _suggestions = data
-              .map((e) => {
-                    'label': e['display_name'] as String,
-                    'lat': double.parse(e['lat'] as String),
-                    'lng': double.parse(e['lon'] as String),
-                  })
-              .toList();
-        });
-      }
-    });
-  }
+  // ── Date & time pickers ───────────────────────────────────────────────────
 
-  void _selectSuggestion(Map<String, dynamic> s) {
-    setState(() {
-      _cityController.text = (s['label'] as String).split(',').first.trim();
-      _lat = s['lat'] as double;
-      _lng = s['lng'] as double;
-      _suggestions = [];
-    });
-  }
-
-  Future<void> _pickDateTime({required bool isDepart}) async {
-    final date = await showDatePicker(
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now().add(const Duration(days: 1)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-    if (time == null) return;
-    final dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    setState(() => isDepart ? _departAt = dt : _returnAt = dt);
+    if (picked == null) return;
+    setState(() {
+      _tripDate = picked;
+      // Reset times when date changes
+      _departTime = null;
+      _returnTime = null;
+    });
   }
+
+  Future<void> _pickDepartTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 7, minute: 0),
+    );
+    if (picked == null) return;
+    setState(() {
+      _departTime = picked;
+      // Invalidate return time if it's no longer after depart
+      if (_returnTime != null && !_returnTimeIsAfterDepart(_returnTime!, picked)) {
+        _returnTime = null;
+      }
+    });
+  }
+
+  Future<void> _pickReturnTime() async {
+    if (_departTime == null) return; // button is disabled anyway
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: (_departTime!.hour + 8).clamp(0, 23),
+        minute: _departTime!.minute,
+      ),
+    );
+    if (picked == null) return;
+    if (!_returnTimeIsAfterDepart(picked, _departTime!)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('L\'heure de retour doit être après le départ.')),
+        );
+      }
+      return;
+    }
+    setState(() => _returnTime = picked);
+  }
+
+  bool _returnTimeIsAfterDepart(TimeOfDay ret, TimeOfDay dep) {
+    return ret.hour * 60 + ret.minute > dep.hour * 60 + dep.minute;
+  }
+
+  // ── Submit ────────────────────────────────────────────────────────────────
 
   Future<void> _submit() async {
     if (_lat == null || _lng == null) {
-      setState(() => _error = 'Sélectionnez une ville de départ.');
+      setState(() => _error = 'Sélectionnez une ville de départ dans la liste.');
       return;
     }
-    if (_departAt == null || _returnAt == null) {
-      setState(() => _error = 'Renseignez les dates de départ et de retour.');
+    if (_tripDate == null) {
+      setState(() => _error = 'Choisissez la date du trajet.');
       return;
     }
+    if (_departTime == null) {
+      setState(() => _error = 'Indiquez l\'heure de départ.');
+      return;
+    }
+    if (_returnTime == null) {
+      setState(() => _error = 'Indiquez l\'heure de retour prévue.');
+      return;
+    }
+
+    final departAt = DateTime(
+      _tripDate!.year, _tripDate!.month, _tripDate!.day,
+      _departTime!.hour, _departTime!.minute,
+    );
+    final returnAt = DateTime(
+      _tripDate!.year, _tripDate!.month, _tripDate!.day,
+      _returnTime!.hour, _returnTime!.minute,
+    );
+
     setState(() { _loading = true; _error = null; });
     try {
       await createApiClient().post('/trips', data: {
-        'departure_city': _cityController.text.trim(),
+        'departure_city': _cityName,
         'departure_lat': _lat,
         'departure_lng': _lng,
-        'depart_at': _departAt!.toUtc().toIso8601String(),
-        'return_at': _returnAt!.toUtc().toIso8601String(),
+        'depart_at': departAt.toUtc().toIso8601String(),
+        'return_at': returnAt.toUtc().toIso8601String(),
         'seats_total': _seats,
         'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       });
@@ -112,9 +141,21 @@ class _TripCreateScreenState extends State<TripCreateScreen> {
     }
   }
 
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final fmt = DateFormat('EEE d MMM · HH:mm', 'fr_FR');
+    final dateFmt = DateFormat('EEEE d MMMM yyyy', 'fr_FR');
+    final timeFmt = DateFormat('HH:mm');
+
+    String? formattedDate = _tripDate != null ? dateFmt.format(_tripDate!) : null;
+    String? formattedDepart = _departTime != null
+        ? timeFmt.format(DateTime(2000, 1, 1, _departTime!.hour, _departTime!.minute))
+        : null;
+    String? formattedReturn = _returnTime != null
+        ? timeFmt.format(DateTime(2000, 1, 1, _returnTime!.hour, _returnTime!.minute))
+        : null;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Proposer un trajet')),
       body: SingleChildScrollView(
@@ -122,49 +163,136 @@ class _TripCreateScreenState extends State<TripCreateScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+
+            // ── City ──────────────────────────────────────────────────────
             const Text('Ville de départ', style: TextStyle(fontSize: 13, color: Colors.white54)),
             const SizedBox(height: 6),
-            TextField(
-              controller: _cityController,
-              decoration: const InputDecoration(
-                hintText: 'Toulouse, Lyon…',
-                border: OutlineInputBorder(),
-                suffixIcon: Icon(Icons.search),
-              ),
-              onChanged: _onCityChanged,
-            ),
-            if (_suggestions.isNotEmpty)
-              Card(
-                margin: const EdgeInsets.only(top: 4),
-                child: Column(
-                  children: _suggestions.map((s) => ListTile(
-                    title: Text(s['label'] as String, style: const TextStyle(fontSize: 13)),
-                    onTap: () => _selectSuggestion(s),
-                  )).toList(),
+            Autocomplete<Map<String, dynamic>>(
+              optionsBuilder: (TextEditingValue value) async {
+                if (value.text.length < 3) return [];
+                // Invalidate confirmed location when user types again
+                if (_lat != null) setState(() { _lat = null; _lng = null; });
+                try {
+                  final url = Uri.parse(
+                    'https://nominatim.openstreetmap.org/search'
+                    '?q=${Uri.encodeComponent(value.text)}&countrycodes=fr'
+                    '&format=json&limit=5&addressdetails=1',
+                  );
+                  final res = await http.get(url, headers: {'Accept-Language': 'fr'});
+                  if (res.statusCode == 200) {
+                    final data = jsonDecode(res.body) as List;
+                    return data.map((e) => {
+                      'label': e['display_name'] as String,
+                      'short': (e['display_name'] as String).split(',').first.trim(),
+                      'lat': double.parse(e['lat'] as String),
+                      'lng': double.parse(e['lon'] as String),
+                    }).toList();
+                  }
+                } catch (_) {}
+                return [];
+              },
+              displayStringForOption: (s) => s['short'] as String,
+              onSelected: (s) {
+                setState(() {
+                  _cityName = s['short'] as String;
+                  _lat = s['lat'] as double;
+                  _lng = s['lng'] as double;
+                });
+                FocusScope.of(context).unfocus();
+              },
+              optionsViewBuilder: (context, onSelected, options) => Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  elevation: 4,
+                  borderRadius: BorderRadius.circular(8),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 240),
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      itemCount: options.length,
+                      itemBuilder: (_, i) {
+                        final s = options.elementAt(i);
+                        return ListTile(
+                          dense: true,
+                          title: Text(s['short'] as String,
+                              style: const TextStyle(fontSize: 13)),
+                          subtitle: Text(
+                            (s['label'] as String).split(',').skip(1).take(2).join(',').trim(),
+                            style: const TextStyle(fontSize: 11, color: Colors.white38),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () => onSelected(s),
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
+              fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
+                controller: controller,
+                focusNode: focusNode,
+                decoration: InputDecoration(
+                  hintText: 'Toulouse, Lyon…',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: _lat != null
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : const Icon(Icons.search),
+                ),
+              ),
+            ),
             const SizedBox(height: 20),
 
+            // ── Date ──────────────────────────────────────────────────────
+            const Text('Date du trajet', style: TextStyle(fontSize: 13, color: Colors.white54)),
+            const SizedBox(height: 6),
+            _Tile(
+              icon: Icons.calendar_today,
+              label: formattedDate ?? 'Choisir la date',
+              confirmed: _tripDate != null,
+              onTap: _pickDate,
+            ),
+            const SizedBox(height: 16),
+
+            // ── Times ─────────────────────────────────────────────────────
             Row(children: [
-              Expanded(child: _DateTile(
-                icon: Icons.flight_takeoff,
-                label: 'Départ',
-                value: _departAt != null ? fmt.format(_departAt!) : null,
-                onTap: () => _pickDateTime(isDepart: true),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Heure de départ', style: TextStyle(fontSize: 13, color: Colors.white54)),
+                  const SizedBox(height: 6),
+                  _Tile(
+                    icon: Icons.flight_takeoff,
+                    label: formattedDepart ?? 'Choisir',
+                    confirmed: _departTime != null,
+                    enabled: _tripDate != null,
+                    onTap: _pickDepartTime,
+                  ),
+                ],
               )),
               const SizedBox(width: 12),
-              Expanded(child: _DateTile(
-                icon: Icons.flight_land,
-                label: 'Retour',
-                value: _returnAt != null ? fmt.format(_returnAt!) : null,
-                onTap: () => _pickDateTime(isDepart: false),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Heure de retour', style: TextStyle(fontSize: 13, color: Colors.white54)),
+                  const SizedBox(height: 6),
+                  _Tile(
+                    icon: Icons.flight_land,
+                    label: formattedReturn ?? 'Choisir',
+                    confirmed: _returnTime != null,
+                    enabled: _departTime != null,
+                    onTap: _pickReturnTime,
+                  ),
+                ],
               )),
             ]),
             const SizedBox(height: 20),
 
+            // ── Seats ─────────────────────────────────────────────────────
             const Text('Nombre de places (passagers)', style: TextStyle(fontSize: 13, color: Colors.white54)),
             const SizedBox(height: 8),
-            Row(mainAxisAlignment: MainAxisAlignment.start, children: [
+            Row(children: [
               IconButton(
                 onPressed: () => setState(() => _seats = (_seats - 1).clamp(1, 8)),
                 icon: const Icon(Icons.remove_circle_outline),
@@ -177,6 +305,7 @@ class _TripCreateScreenState extends State<TripCreateScreen> {
             ]),
             const SizedBox(height: 20),
 
+            // ── Notes ─────────────────────────────────────────────────────
             const Text('Notes (optionnel)', style: TextStyle(fontSize: 13, color: Colors.white54)),
             const SizedBox(height: 6),
             TextField(
@@ -210,33 +339,46 @@ class _TripCreateScreenState extends State<TripCreateScreen> {
   }
 }
 
-class _DateTile extends StatelessWidget {
+class _Tile extends StatelessWidget {
   final IconData icon;
   final String label;
-  final String? value;
+  final bool confirmed;
+  final bool enabled;
   final VoidCallback onTap;
-  const _DateTile({required this.icon, required this.label, this.value, required this.onTap});
+
+  const _Tile({
+    required this.icon,
+    required this.label,
+    required this.confirmed,
+    required this.onTap,
+    this.enabled = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
-          border: Border.all(color: kBorder),
+          border: Border.all(color: confirmed ? kPrimary : kBorder),
           borderRadius: BorderRadius.circular(8),
+          color: enabled ? null : Colors.white.withValues(alpha: 0.03),
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Icon(icon, size: 14, color: Colors.white38), const SizedBox(width: 4),
-            Text(label, style: const TextStyle(fontSize: 11, color: Colors.white38))]),
-          const SizedBox(height: 4),
-          Text(value ?? 'Choisir', style: TextStyle(
-            fontSize: 13,
-            color: value != null ? Colors.white : Colors.white38,
-            fontWeight: value != null ? FontWeight.w600 : FontWeight.normal,
+        child: Row(children: [
+          Icon(icon, size: 16,
+              color: confirmed ? kPrimary : (enabled ? Colors.white54 : Colors.white24)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: confirmed ? Colors.white : (enabled ? Colors.white54 : Colors.white24),
+              fontWeight: confirmed ? FontWeight.w600 : FontWeight.normal,
+            ),
           )),
+          if (confirmed) const Icon(Icons.check_circle, size: 16, color: kPrimary),
         ]),
       ),
     );

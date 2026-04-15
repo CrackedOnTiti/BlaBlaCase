@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 // Replace with your Cloudflare Tunnel URL once the Pi is configured.
-const String _baseUrl = 'https://api.blablacase.com';
+const String _baseUrl = 'https://romance-stages-civilian-belfast.trycloudflare.com';
 
 Dio createApiClient() {
   final dio = Dio(BaseOptions(baseUrl: _baseUrl, connectTimeout: const Duration(seconds: 10)));

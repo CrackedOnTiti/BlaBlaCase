@@ -32,24 +32,47 @@ class TripDetailScreen extends ConsumerWidget {
   }
 }
 
-class _TripDetailBody extends StatelessWidget {
+class _TripDetailBody extends StatefulWidget {
   final Map<String, dynamic> trip;
   final String tripId;
   final WidgetRef ref;
 
   const _TripDetailBody({required this.trip, required this.tripId, required this.ref});
 
-  Future<void> _joinTrip(BuildContext context) async {
+  @override
+  State<_TripDetailBody> createState() => _TripDetailBodyState();
+}
+
+class _TripDetailBodyState extends State<_TripDetailBody> {
+  bool _showJoinForm = false;
+  bool _joining = false;
+  final _messageController = TextEditingController();
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendJoinRequest() async {
+    setState(() => _joining = true);
+    final api = createApiClient();
     try {
-      await createApiClient().post('/trips/$tripId/join');
-      ref.invalidate(tripDetailProvider(tripId));
-      if (context.mounted) {
+      await api.post('/trips/${widget.tripId}/join');
+      final msg = _messageController.text.trim();
+      if (msg.isNotEmpty) {
+        await api.post('/trips/${widget.tripId}/messages', data: {'content': msg});
+      }
+      widget.ref.invalidate(tripDetailProvider(widget.tripId));
+      if (mounted) {
+        setState(() { _showJoinForm = false; _joining = false; });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Demande envoyée au conducteur !')),
         );
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
+        setState(() => _joining = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur: $e')),
         );
@@ -59,6 +82,8 @@ class _TripDetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final trip = widget.trip;
+    final tripId = widget.tripId;
     final driver = trip['driver'] as Map<String, dynamic>;
     final fmt = DateFormat('EEEE d MMMM yyyy · HH:mm', 'fr_FR');
     final departAt = DateTime.parse(trip['depart_at'] as String).toLocal();
@@ -140,23 +165,47 @@ class _TripDetailBody extends StatelessWidget {
           ],
 
           // Actions
-          Row(children: [
-            Expanded(
+          if (!_showJoinForm)
+            SizedBox(
+              width: double.infinity,
               child: FilledButton.icon(
-                onPressed: () => _joinTrip(context),
+                onPressed: () => setState(() => _showJoinForm = true),
                 icon: const Icon(Icons.person_add),
-                label: const Text('Rejoindre'),
+                label: const Text('Demander à rejoindre'),
+              ),
+            )
+          else ...[
+            const Text('Message au conducteur (optionnel)',
+                style: TextStyle(fontSize: 13, color: Colors.white54)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _messageController,
+              maxLines: 3,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'Présentez-vous, indiquez votre point de départ…',
+                border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => context.push('/trip/$tripId/chat'),
-                icon: const Icon(Icons.chat_bubble_outline),
-                label: const Text('Chat groupe'),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _joining ? null : () => setState(() => _showJoinForm = false),
+                  child: const Text('Annuler'),
+                ),
               ),
-            ),
-          ]),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _joining ? null : _sendJoinRequest,
+                  child: _joining
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Envoyer la demande'),
+                ),
+              ),
+            ]),
+          ],
 
           const SizedBox(height: 12),
           const Text(
