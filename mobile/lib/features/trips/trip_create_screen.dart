@@ -2,6 +2,7 @@ import '../../core/theme/app_theme.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -167,70 +168,32 @@ class _TripCreateScreenState extends State<TripCreateScreen> {
             // ── City ──────────────────────────────────────────────────────
             const Text('Ville de départ', style: TextStyle(fontSize: 13, color: Colors.white54)),
             const SizedBox(height: 6),
-            Autocomplete<Map<String, dynamic>>(
-              optionsBuilder: (TextEditingValue value) async {
-                if (value.text.length < 3) return [];
-                // Invalidate confirmed location when user types again
-                if (_lat != null) setState(() { _lat = null; _lng = null; });
-                try {
-                  final url = Uri.parse(
+            TypeAheadField<Map<String, dynamic>>(
+              suggestionsCallback: (query) async {
+                if (query.length < 3) return [];
+                final res = await http.get(
+                  Uri.parse(
                     'https://nominatim.openstreetmap.org/search'
-                    '?q=${Uri.encodeComponent(value.text)}&countrycodes=fr'
+                    '?q=${Uri.encodeComponent(query)}&countrycodes=fr'
                     '&format=json&limit=5&addressdetails=1',
-                  );
-                  final res = await http.get(url, headers: {'Accept-Language': 'fr'});
-                  if (res.statusCode == 200) {
-                    final data = jsonDecode(res.body) as List;
-                    return data.map((e) => {
-                      'label': e['display_name'] as String,
-                      'short': (e['display_name'] as String).split(',').first.trim(),
-                      'lat': double.parse(e['lat'] as String),
-                      'lng': double.parse(e['lon'] as String),
-                    }).toList();
-                  }
-                } catch (_) {}
+                  ),
+                  headers: {
+                    'Accept-Language': 'fr',
+                    'User-Agent': 'BlaBlaCase/1.0 (fr.blablacase.app)',
+                  },
+                );
+                if (res.statusCode == 200) {
+                  final data = jsonDecode(res.body) as List;
+                  return data.map((e) => {
+                    'label': e['display_name'] as String,
+                    'short': (e['display_name'] as String).split(',').first.trim(),
+                    'lat': double.parse(e['lat'] as String),
+                    'lng': double.parse(e['lon'] as String),
+                  }).toList();
+                }
                 return [];
               },
-              displayStringForOption: (s) => s['short'] as String,
-              onSelected: (s) {
-                setState(() {
-                  _cityName = s['short'] as String;
-                  _lat = s['lat'] as double;
-                  _lng = s['lng'] as double;
-                });
-                FocusScope.of(context).unfocus();
-              },
-              optionsViewBuilder: (context, onSelected, options) => Align(
-                alignment: Alignment.topLeft,
-                child: Material(
-                  elevation: 4,
-                  borderRadius: BorderRadius.circular(8),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 240),
-                    child: ListView.builder(
-                      padding: EdgeInsets.zero,
-                      shrinkWrap: true,
-                      itemCount: options.length,
-                      itemBuilder: (_, i) {
-                        final s = options.elementAt(i);
-                        return ListTile(
-                          dense: true,
-                          title: Text(s['short'] as String,
-                              style: const TextStyle(fontSize: 13)),
-                          subtitle: Text(
-                            (s['label'] as String).split(',').skip(1).take(2).join(',').trim(),
-                            style: const TextStyle(fontSize: 11, color: Colors.white38),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onTap: () => onSelected(s),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-              fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
+              builder: (context, controller, focusNode) => TextField(
                 controller: controller,
                 focusNode: focusNode,
                 decoration: InputDecoration(
@@ -241,6 +204,25 @@ class _TripCreateScreenState extends State<TripCreateScreen> {
                       : const Icon(Icons.search),
                 ),
               ),
+              itemBuilder: (context, s) => ListTile(
+                dense: true,
+                title: Text(s['short'] as String, style: const TextStyle(fontSize: 13)),
+                subtitle: Text(
+                  (s['label'] as String).split(',').skip(1).take(2).join(',').trim(),
+                  style: const TextStyle(fontSize: 11, color: Colors.white38),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              onSelected: (s) {
+                setState(() {
+                  _cityName = s['short'] as String;
+                  _lat = s['lat'] as double;
+                  _lng = s['lng'] as double;
+                  _error = null;
+                });
+                FocusScope.of(context).unfocus();
+              },
             ),
             const SizedBox(height: 20),
 

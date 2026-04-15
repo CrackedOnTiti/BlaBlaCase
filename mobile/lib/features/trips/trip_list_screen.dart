@@ -97,22 +97,32 @@ class TripListScreen extends ConsumerWidget {
           // Ad banner — non-intrusive, top of list
           const _BannerAdWidget(),
           Expanded(
-            child: tripsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Erreur: $e')),
-              data: (trips) => trips.isEmpty
-                  ? const Center(child: Text('Aucun trajet disponible.'))
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: trips.length,
-                      itemBuilder: (_, i) => _TripCard(trip: trips[i]),
-                    ),
+            child: RefreshIndicator(
+              onRefresh: () => ref.refresh(tripsProvider.future),
+              child: tripsAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(child: Text('Erreur: $e')),
+                data: (trips) => trips.isEmpty
+                    ? const CustomScrollView(slivers: [
+                        SliverFillRemaining(
+                          child: Center(child: Text('Aucun trajet disponible.')),
+                        ),
+                      ])
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: trips.length,
+                        itemBuilder: (_, i) => _TripCard(trip: trips[i]),
+                      ),
+              ),
             ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/home/create'),
+        onPressed: () async {
+          await context.push('/home/create');
+          ref.invalidate(tripsProvider);
+        },
         icon: const Icon(Icons.add),
         label: const Text('Proposer un trajet'),
       ),
