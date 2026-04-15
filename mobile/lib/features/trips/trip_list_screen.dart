@@ -2,6 +2,7 @@ import '../../core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
 
@@ -84,13 +85,7 @@ class TripListScreen extends ConsumerWidget {
             ],
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calculate_outlined),
-            tooltip: 'Calculateur',
-            onPressed: () => context.push('/calculator'),
-          ),
-        ],
+        actions: const [],
       ),
       body: Column(
         children: [
@@ -118,13 +113,33 @@ class TripListScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await context.push('/home/create');
-          ref.invalidate(tripsProvider);
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('Proposer un trajet'),
+      floatingActionButton: SpeedDial(
+        icon: Icons.menu,
+        activeIcon: Icons.close,
+        backgroundColor: kPrimary,
+        foregroundColor: Colors.white,
+        spacing: 12,
+        children: [
+          SpeedDialChild(
+            child: const Icon(Icons.calculate_outlined),
+            label: 'Calculateur',
+            backgroundColor: kSurface,
+            foregroundColor: kAccent,
+            labelStyle: const TextStyle(fontSize: 13),
+            onTap: () => context.push('/calculator'),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.add),
+            label: 'Proposer un trajet',
+            backgroundColor: kSurface,
+            foregroundColor: kAccent,
+            labelStyle: const TextStyle(fontSize: 13),
+            onTap: () async {
+              await context.push('/home/create');
+              ref.invalidate(tripsProvider);
+            },
+          ),
+        ],
       ),
     );
   }
