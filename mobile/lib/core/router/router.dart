@@ -8,6 +8,7 @@ import '../../features/trips/trip_detail_screen.dart';
 import '../../features/trips/trip_create_screen.dart';
 import '../../features/calculator/calculator_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/profile/my_profile_screen.dart';
 import '../../features/chat/chat_screen.dart';
 
 // Listens to Firebase auth state so the router reacts to sign-in/sign-out.
@@ -53,5 +54,6 @@ final router = GoRouter(
       builder: (_, state) => ProfileScreen(userId: state.pathParameters['id']!),
     ),
     GoRoute(path: '/calculator', builder: (_, _) => const CalculatorScreen()),
+    GoRoute(path: '/me', builder: (_, _) => const MyProfileScreen()),
   ],
 );

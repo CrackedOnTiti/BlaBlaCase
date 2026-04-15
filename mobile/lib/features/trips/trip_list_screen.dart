@@ -85,7 +85,13 @@ class TripListScreen extends ConsumerWidget {
             ],
           ),
         ),
-        actions: const [],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.account_circle_outlined),
+            tooltip: 'Mon profil',
+            onPressed: () => context.push('/me'),
+          ),
+        ],
       ),
       body: Column(
         children: [

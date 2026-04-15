@@ -23,6 +23,11 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# Extended schema for the authenticated user's own profile (includes phone)
+class MyUserOut(UserOut):
+    phone: str
+
+
 class UserUpdate(BaseModel):
     display_name: str | None = None
     avatar_url: str | None = None
@@ -45,7 +50,7 @@ async def get_or_create_user(firebase_user: dict, db: AsyncSession) -> User:
     return user
 
 
-@router.get("/me", response_model=UserOut)
+@router.get("/me", response_model=MyUserOut)
 async def get_me(
     firebase_user: Annotated[dict, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -53,7 +58,7 @@ async def get_me(
     return await get_or_create_user(firebase_user, db)
 
 
-@router.patch("/me", response_model=UserOut)
+@router.patch("/me", response_model=MyUserOut)
 async def update_me(
     body: UserUpdate,
     firebase_user: Annotated[dict, Depends(get_current_user)],
@@ -67,6 +72,16 @@ async def update_me(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_me(
+    firebase_user: Annotated[dict, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    user = await get_or_create_user(firebase_user, db)
+    await db.delete(user)
+    await db.commit()
 
 
 @router.get("/{user_id}", response_model=UserOut)
