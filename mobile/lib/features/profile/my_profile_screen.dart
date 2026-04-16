@@ -2,6 +2,7 @@ import '../../core/theme/app_theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/api/api_client.dart';
 
@@ -254,9 +255,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      // TODO: navigate to my trips screen
-                    },
+                    onPressed: () => context.push('/my-trips'),
                     icon: const Icon(Icons.directions_car_outlined),
                     label: const Text('Mes trajets'),
                   ),

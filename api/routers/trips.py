@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from api.auth import get_current_user
 from api.db import get_db
-from api.models import Trip, TripPassenger, User
+from api.models import Message, Trip, TripPassenger, User
 from api.routers.users import UserOut, get_or_create_user
 
 router = APIRouter()
@@ -67,6 +67,18 @@ class PassengerStatusUpdate(BaseModel):
 
 class JoinRequest(BaseModel):
     intro_message: str | None = None
+
+
+class TripRoomOut(BaseModel):
+    trip_id: uuid.UUID
+    departure_city: str
+    depart_at: datetime
+    last_message_content: str | None
+    last_message_at: datetime | None
+    last_message_sender: str | None
+    user_has_messaged: bool = False
+
+    model_config = {"from_attributes": True}
 
 
 class PendingRequestOut(BaseModel):
@@ -149,6 +161,83 @@ async def list_trips(
         q = q.where(Trip.depart_at <= date_to)
 
     result = await db.execute(q)
+    return result.scalars().all()
+
+
+@router.get("/mine", response_model=list[TripRoomOut])
+async def get_my_trips(
+    firebase_user: Annotated[dict, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    user = await get_or_create_user(firebase_user, db)
+
+    # Trips where user is driver
+    driver_q = select(Trip.id).where(Trip.driver_id == user.id)
+    # Trips where user is accepted passenger
+    passenger_q = select(TripPassenger.trip_id).where(
+        and_(TripPassenger.user_id == user.id, TripPassenger.status == "accepted")
+    )
+
+    result = await db.execute(
+        select(Trip)
+        .where(or_(Trip.id.in_(driver_q), Trip.id.in_(passenger_q)))
+        .where(Trip.status != "cancelled")
+        .order_by(Trip.depart_at)
+    )
+    trips = result.scalars().all()
+
+    rooms = []
+    for trip in trips:
+        msg_result = await db.execute(
+            select(Message)
+            .options(selectinload(Message.sender))
+            .where(Message.trip_id == trip.id)
+            .order_by(Message.created_at.desc())
+            .limit(1)
+        )
+        last_msg = msg_result.scalar_one_or_none()
+        user_msg_result = await db.execute(
+            select(Message.id)
+            .where(and_(Message.trip_id == trip.id, Message.sender_id == user.id))
+            .limit(1)
+        )
+        user_has_messaged = user_msg_result.scalar_one_or_none() is not None
+        rooms.append(TripRoomOut(
+            trip_id=trip.id,
+            departure_city=trip.departure_city,
+            depart_at=trip.depart_at,
+            last_message_content=last_msg.content if last_msg else None,
+            last_message_at=last_msg.created_at if last_msg else None,
+            last_message_sender=last_msg.sender.display_name if last_msg else None,
+            user_has_messaged=user_has_messaged,
+        ))
+    rooms.sort(
+        key=lambda r: r.last_message_at or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
+    return rooms
+
+
+@router.get("/mine/full", response_model=list[TripOut])
+async def get_my_trips_full(
+    firebase_user: Annotated[dict, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    user = await get_or_create_user(firebase_user, db)
+    driver_q = select(Trip.id).where(Trip.driver_id == user.id)
+    passenger_q = select(TripPassenger.trip_id).where(
+        and_(TripPassenger.user_id == user.id, TripPassenger.status == "accepted")
+    )
+    result = await db.execute(
+        select(Trip)
+        .options(
+            selectinload(Trip.driver),
+            selectinload(Trip.passengers).selectinload(TripPassenger.user),
+        )
+        .where(or_(Trip.id.in_(driver_q), Trip.id.in_(passenger_q)))
+        .where(Trip.status != "cancelled")
+        .order_by(Trip.depart_at)
+    )
     return result.scalars().all()
 
 
@@ -251,6 +340,16 @@ async def update_passenger_status(
         trip.seats_available = max(0, trip.seats_available - 1)
         if trip.seats_available == 0:
             trip.status = "full"
+        # Auto-message in group chat
+        passenger_result = await db.execute(select(User).where(User.id == user_id))
+        passenger = passenger_result.scalar_one_or_none()
+        if passenger:
+            name = passenger.display_name or "Quelqu'un"
+            db.add(Message(
+                trip_id=trip_id,
+                sender_id=user_id,
+                content=f"👋 {name} a rejoint le trajet ! Dites-lui bonjour 😄",
+            ))
     elif body.status == "rejected" and previous_status == "accepted":
         trip.seats_available = min(trip.seats_total, trip.seats_available + 1)
         trip.status = "open"

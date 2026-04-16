@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
 import '../notifications/notifications_screen.dart' show notificationsProvider;
+import '../messages/messages_screen.dart' show tripRoomsProvider, unreadRoomsProvider;
 
 // ── Providers ──────────────────────────────────────────────────────────────
 
@@ -184,6 +185,34 @@ class TripListScreen extends ConsumerWidget {
               ref.invalidate(tripsProvider);
             },
           ),
+          SpeedDialChild(
+            child: const Icon(Icons.directions_car_outlined),
+            label: 'Mes trajets',
+            backgroundColor: kSurface,
+            foregroundColor: kAccent,
+            labelStyle: const TextStyle(fontSize: 13),
+            onTap: () => context.push('/my-trips'),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.account_circle_outlined),
+            label: 'Profil',
+            backgroundColor: kSurface,
+            foregroundColor: kAccent,
+            labelStyle: const TextStyle(fontSize: 13),
+            onTap: () => context.push('/me'),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.chat_bubble_outline),
+            label: 'Messagerie',
+            backgroundColor: kSurface,
+            foregroundColor: kAccent,
+            labelStyle: const TextStyle(fontSize: 13),
+            onTap: () async {
+              await context.push('/messages');
+              ref.invalidate(tripRoomsProvider);
+              ref.invalidate(unreadRoomsProvider);
+            },
+          ),
         ],
       ),
     );
@@ -195,15 +224,21 @@ class TripListScreen extends ConsumerWidget {
 class _BellIcon extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final count = ref.watch(notificationsProvider).valueOrNull?.length ?? 0;
+    final pendingCount = ref.watch(notificationsProvider).valueOrNull?.length ?? 0;
+    final unreadCount = ref.watch(unreadRoomsProvider).valueOrNull ?? 0;
+    final hasAlert = pendingCount > 0 || unreadCount > 0;
     return IconButton(
-      tooltip: 'Demandes',
-      onPressed: () => context.push('/notifications'),
+      tooltip: 'Messages',
+      onPressed: () async {
+        await context.push('/messages');
+        ref.invalidate(tripRoomsProvider);
+        ref.invalidate(unreadRoomsProvider);
+      },
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
-          const Icon(Icons.notifications_outlined),
-          if (count > 0)
+          const Icon(Icons.chat_bubble_outline),
+          if (hasAlert)
             Positioned(
               top: -2,
               right: -2,

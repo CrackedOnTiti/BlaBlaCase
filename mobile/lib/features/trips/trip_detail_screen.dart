@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
 import '../trips/trip_list_screen.dart' show myUserProvider, tripsProvider;
+import '../messages/messages_screen.dart' show markTripRead;
 
 final tripDetailProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>(
   (ref, tripId) async {
@@ -240,6 +241,20 @@ class _TripDetailBodyState extends State<_TripDetailBody> {
             ]),
           ],
 
+          if (isDriver || myStatus == 'accepted') ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  await markTripRead(tripId);
+                  if (context.mounted) await context.push('/trip/$tripId/chat');
+                },
+                icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                label: const Text('Ouvrir le chat du groupe'),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           const Text(
             'Les sélections d\'articles sont informelles et n\'ont aucun effet légal. '

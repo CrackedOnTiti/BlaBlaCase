@@ -79,6 +79,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       // Router handles navigation via authStateChanges
     } on FirebaseAuthException catch (e) {
       setState(() { _error = e.message; _loading = false; });
+    } catch (e) {
+      setState(() { _error = e.toString(); _loading = false; });
     }
   }
 

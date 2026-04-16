@@ -104,6 +104,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
           ),
+          if (_myUserId != null &&
+              !_messages.any((m) => (m['sender'] as Map)['id'] == _myUserId))
+            const _DisclaimerBanner(),
           _InputBar(controller: _controller, onSend: _send, sending: _sending),
         ],
       ),
@@ -148,6 +151,25 @@ class _MessageBubble extends StatelessWidget {
                 style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.5))),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DisclaimerBanner extends StatelessWidget {
+  const _DisclaimerBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      color: kSurface2,
+      child: const Text(
+        "Tout message est automatiquement effacé après 72h d'envoi. "
+        "Pour tout message important (adresse, horaires…), sauvegardez-le sur votre agenda.",
+        style: TextStyle(fontSize: 11, color: Colors.white38, fontStyle: FontStyle.italic),
+        textAlign: TextAlign.center,
       ),
     );
   }
