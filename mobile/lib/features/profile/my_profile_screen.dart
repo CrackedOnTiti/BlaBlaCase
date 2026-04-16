@@ -261,6 +261,19 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                     label: const Text('Mes trajets'),
                   ),
                 ),
+                const SizedBox(height: 12),
+
+                // ── Logout ───────────────────────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      await FirebaseAuth.instance.signOut();
+                    },
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Se déconnecter'),
+                  ),
+                ),
                 const SizedBox(height: 48),
 
                 // ── Delete account ───────────────────────────────────────

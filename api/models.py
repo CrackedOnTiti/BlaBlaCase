@@ -76,6 +76,7 @@ class TripPassenger(Base):
     user_id: Mapped[uuid.UUID]   = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     # status: pending | accepted | rejected
     status: Mapped[str]          = mapped_column(String(16), default="pending", server_default="pending", nullable=False)
+    intro_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     joined_at: Mapped[datetime]  = mapped_column(DateTime(timezone=True), default=_now, server_default=func.now())
 
     trip: Mapped["Trip"] = relationship(back_populates="passengers")

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/login_screen.dart';
+import '../../features/auth/setup_screen.dart';
 import '../../features/trips/trip_list_screen.dart';
 import '../../features/trips/trip_detail_screen.dart';
 import '../../features/trips/trip_create_screen.dart';
@@ -10,6 +11,7 @@ import '../../features/calculator/calculator_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/profile/my_profile_screen.dart';
 import '../../features/chat/chat_screen.dart';
+import '../../features/notifications/notifications_screen.dart';
 
 // Listens to Firebase auth state so the router reacts to sign-in/sign-out.
 final _authStateNotifier = ValueNotifier<bool>(false);
@@ -27,11 +29,12 @@ final router = GoRouter(
     final authed = FirebaseAuth.instance.currentUser != null;
     final onLogin = state.matchedLocation == '/login';
     if (!authed && !onLogin) return '/login';
-    if (authed && onLogin) return '/home';
+    if (authed && onLogin) return '/setup';
     return null;
   },
   routes: [
     GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+    GoRoute(path: '/setup', builder: (_, _) => const SetupScreen()),
     GoRoute(
       path: '/home',
       builder: (_, _) => const TripListScreen(),
@@ -55,5 +58,6 @@ final router = GoRouter(
     ),
     GoRoute(path: '/calculator', builder: (_, _) => const CalculatorScreen()),
     GoRoute(path: '/me', builder: (_, _) => const MyProfileScreen()),
+    GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
   ],
 );

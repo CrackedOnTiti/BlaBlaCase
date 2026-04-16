@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
+import '../trips/trip_list_screen.dart' show myUserProvider, tripsProvider;
 
 final tripDetailProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>(
   (ref, tripId) async {
@@ -46,26 +47,37 @@ class _TripDetailBody extends StatefulWidget {
 class _TripDetailBodyState extends State<_TripDetailBody> {
   bool _showJoinForm = false;
   bool _joining = false;
-  final _messageController = TextEditingController();
+  bool _requestSent = false;
+  final _introController = TextEditingController();
 
   @override
   void dispose() {
-    _messageController.dispose();
+    _introController.dispose();
     super.dispose();
+  }
+
+  Future<void> _updatePassengerStatus(String userId, String status) async {
+    final api = createApiClient();
+    try {
+      await api.patch('/trips/${widget.tripId}/passengers/$userId', data: {'status': status});
+      widget.ref.invalidate(tripDetailProvider(widget.tripId));
+      widget.ref.invalidate(tripsProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+      }
+    }
   }
 
   Future<void> _sendJoinRequest() async {
     setState(() => _joining = true);
-    final api = createApiClient();
+    final msg = _introController.text.trim();
     try {
-      await api.post('/trips/${widget.tripId}/join');
-      final msg = _messageController.text.trim();
-      if (msg.isNotEmpty) {
-        await api.post('/trips/${widget.tripId}/messages', data: {'content': msg});
-      }
+      await createApiClient().post('/trips/${widget.tripId}/join',
+          data: {'intro_message': msg.isEmpty ? null : msg});
       widget.ref.invalidate(tripDetailProvider(widget.tripId));
       if (mounted) {
-        setState(() { _showJoinForm = false; _joining = false; });
+        setState(() { _showJoinForm = false; _joining = false; _requestSent = true; });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Demande envoyée au conducteur !')),
         );
@@ -89,6 +101,10 @@ class _TripDetailBodyState extends State<_TripDetailBody> {
     final departAt = DateTime.parse(trip['depart_at'] as String).toLocal();
     final returnAt = DateTime.parse(trip['return_at'] as String).toLocal();
     final passengers = (trip['passengers'] as List?) ?? [];
+    final myId = widget.ref.watch(myUserProvider).valueOrNull?['id'] as String? ?? '';
+    final isDriver = myId.isNotEmpty && driver['id'] == myId;
+    final myPassenger = passengers.cast<Map>().where((p) => (p['user'] as Map)['id'] == myId).firstOrNull;
+    final myStatus = myPassenger?['status'] as String?;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -122,7 +138,7 @@ class _TripDetailBodyState extends State<_TripDetailBody> {
             child: Row(children: [
               CircleAvatar(
                 backgroundColor: kBorder,
-                child: Text(driver['display_name'].toString()[0].toUpperCase()),
+                child: Text(driver['display_name'].toString().isNotEmpty ? driver['display_name'].toString()[0].toUpperCase() : '?'),
               ),
               const SizedBox(width: 12),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -155,17 +171,34 @@ class _TripDetailBodyState extends State<_TripDetailBody> {
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(
                   backgroundColor: kBorder,
-                  child: Text(u['display_name'].toString()[0].toUpperCase()),
+                  child: Text(u['display_name'].toString().isNotEmpty ? u['display_name'].toString()[0].toUpperCase() : '?'),
                 ),
                 title: Text(u['display_name'] as String),
-                trailing: _StatusChip(status: s),
+                trailing: isDriver && s == 'pending'
+                    ? Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(
+                          icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+                          tooltip: 'Accepter',
+                          onPressed: () => _updatePassengerStatus(u['id'] as String, 'accepted'),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                          tooltip: 'Refuser',
+                          onPressed: () => _updatePassengerStatus(u['id'] as String, 'rejected'),
+                        ),
+                      ])
+                    : _StatusChip(status: s),
               );
             }),
             const SizedBox(height: 20),
           ],
 
           // Actions
-          if (!_showJoinForm)
+          if (isDriver)
+            const SizedBox.shrink()
+          else if (myStatus != null || _requestSent)
+            const SizedBox.shrink()
+          else if (!_showJoinForm)
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -179,11 +212,11 @@ class _TripDetailBodyState extends State<_TripDetailBody> {
                 style: TextStyle(fontSize: 13, color: Colors.white54)),
             const SizedBox(height: 8),
             TextField(
-              controller: _messageController,
+              controller: _introController,
               maxLines: 3,
               autofocus: true,
               decoration: const InputDecoration(
-                hintText: 'Présentez-vous, indiquez votre point de départ…',
+                hintText: 'Présentez-vous, indiquez ce que vous prévoyez d\'acheter…',
                 border: OutlineInputBorder(),
               ),
             ),

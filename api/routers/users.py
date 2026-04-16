@@ -42,7 +42,7 @@ async def get_or_create_user(firebase_user: dict, db: AsyncSession) -> User:
         user = User(
             firebase_uid=uid,
             phone=phone,
-            display_name=firebase_user.get("name") or phone or "Utilisateur",
+            display_name="",
         )
         db.add(user)
         await db.commit()

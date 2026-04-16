@@ -65,6 +65,20 @@ class PassengerStatusUpdate(BaseModel):
     status: str  # accepted | rejected
 
 
+class JoinRequest(BaseModel):
+    intro_message: str | None = None
+
+
+class PendingRequestOut(BaseModel):
+    trip_id: uuid.UUID
+    departure_city: str
+    depart_at: datetime
+    passenger: UserOut
+    intro_message: str | None
+
+    model_config = {"from_attributes": True}
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 async def _load_trip(trip_id: uuid.UUID, db: AsyncSession) -> Trip:
@@ -138,6 +152,32 @@ async def list_trips(
     return result.scalars().all()
 
 
+@router.get("/notifications", response_model=list[PendingRequestOut])
+async def get_notifications(
+    firebase_user: Annotated[dict, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    user = await get_or_create_user(firebase_user, db)
+    result = await db.execute(
+        select(TripPassenger)
+        .join(Trip, TripPassenger.trip_id == Trip.id)
+        .options(selectinload(TripPassenger.user), selectinload(TripPassenger.trip))
+        .where(and_(Trip.driver_id == user.id, TripPassenger.status == "pending"))
+        .order_by(TripPassenger.joined_at)
+    )
+    rows = result.scalars().all()
+    return [
+        PendingRequestOut(
+            trip_id=r.trip_id,
+            departure_city=r.trip.departure_city,
+            depart_at=r.trip.depart_at,
+            passenger=r.user,
+            intro_message=r.intro_message,
+        )
+        for r in rows
+    ]
+
+
 @router.get("/{trip_id}", response_model=TripOut)
 async def get_trip(trip_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]):
     return await _load_trip(trip_id, db)
@@ -146,6 +186,7 @@ async def get_trip(trip_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_d
 @router.post("/{trip_id}/join", status_code=status.HTTP_201_CREATED)
 async def join_trip(
     trip_id: uuid.UUID,
+    body: JoinRequest,
     firebase_user: Annotated[dict, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
@@ -167,7 +208,11 @@ async def join_trip(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Already joined this trip")
 
-    participation = TripPassenger(trip_id=trip_id, user_id=user.id)
+    participation = TripPassenger(
+        trip_id=trip_id,
+        user_id=user.id,
+        intro_message=body.intro_message.strip() if body.intro_message else None,
+    )
     db.add(participation)
     await db.commit()
     return {"detail": "Join request sent"}
