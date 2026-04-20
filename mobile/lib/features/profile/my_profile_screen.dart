@@ -170,8 +170,8 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                                   width: 104, height: 104, fit: BoxFit.cover,
                                 ))
                               : ClipOval(child: Image.asset(
-                                  'assets/logo.png',
-                                  width: 104, height: 104, fit: BoxFit.cover,
+                                  'assets/app-logo.png',
+                                  width: 104, height: 104, fit: BoxFit.contain,
                                 )),
                         ),
                         Positioned(
