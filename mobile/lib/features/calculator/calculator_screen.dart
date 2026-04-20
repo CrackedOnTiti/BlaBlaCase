@@ -1,10 +1,11 @@
 import '../../core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_client.dart';
 
-final allowancesProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+final allowancesProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final res = await createApiClient().get('/allowances');
   return res.data as Map<String, dynamic>;
 });
@@ -30,7 +31,11 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Rafraîchir',
-            onPressed: () => ref.invalidate(allowancesProvider),
+            onPressed: () {
+              debugPrint('>>> invalidating allowancesProvider');
+              ref.invalidate(allowancesProvider);
+              debugPrint('>>> provider state after invalidate: ${ref.read(allowancesProvider)}');
+            },
           ),
         ],
       ),
@@ -107,13 +112,28 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               },
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.all(12),
-            child: Text(
-              'Informations à titre indicatif — source : douane.gouv.fr. '
-              'Chaque voyageur est responsable de sa conformité douanière.',
-              style: TextStyle(fontSize: 10, color: Colors.white38),
-              textAlign: TextAlign.center,
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                const Text(
+                  'Informations à titre indicatif. Chaque voyageur est responsable de sa conformité douanière.',
+                  style: TextStyle(fontSize: 10, color: Colors.white38),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                GestureDetector(
+                  onTap: () => launchUrl(
+                    Uri.parse('https://www.douane.gouv.fr/passer-la-douane-en-andorre-taxes-et-franchises'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  child: const Text(
+                    'Consulter la source officielle — douane.gouv.fr',
+                    style: TextStyle(fontSize: 10, color: Colors.blue, decoration: TextDecoration.underline),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
